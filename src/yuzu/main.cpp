@@ -1454,7 +1454,7 @@ static bool RomFSRawCopy(QProgressDialog& dialog, const FileSys::VirtualDir& src
 }
 
 void GMainWindow::OnGameListRemoveInstalledEntry(u64 program_id, InstalledEntryType type) {
-    const QString entry_type = [this, type] {
+    const QString entry_type = [type] {
         switch (type) {
         case InstalledEntryType::Game:
             return tr("Contents");
@@ -1550,7 +1550,7 @@ void GMainWindow::RemoveAddOnContent(u64 program_id, const QString& entry_type) 
 }
 
 void GMainWindow::OnGameListRemoveFile(u64 program_id, GameListRemoveTarget target) {
-    const QString question = [this, target] {
+    const QString question = [target] {
         switch (target) {
         case GameListRemoveTarget::ShaderCache:
             return tr("Delete Transferable Shader Cache?");
