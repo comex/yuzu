@@ -84,8 +84,16 @@ public:
 
 private:
     const std::string ip;
+<<<<<<< HEAD
     const u16 port;
     const u16 pad;
+||||||| parent of f2c184341 (Deal with various unused fields)
+    const int port;
+    const u32 pad;
+=======
+    [[maybe_unused]] const int port;
+    const u32 pad;
+>>>>>>> f2c184341 (Deal with various unused fields)
     CemuhookUDP::Client* client;
     mutable std::mutex mutex;
 };
