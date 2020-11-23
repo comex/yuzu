@@ -214,7 +214,7 @@ bool VKDevice::Create() {
         .fullDrawIndexUint32 = false,
         .imageCubeArray = false,
         .independentBlend = true,
-        .geometryShader = true,
+        .geometryShader = is_geometry_shader_supported,
         .tessellationShader = true,
         .sampleRateShading = false,
         .dualSrcBlend = false,
@@ -605,7 +605,6 @@ bool VKDevice::IsSuitable(vk::PhysicalDevice physical, VkSurfaceKHR surface, u32
         std::make_pair(features.largePoints, "largePoints"),
         std::make_pair(features.multiViewport, "multiViewport"),
         std::make_pair(features.depthBiasClamp, "depthBiasClamp"),
-        std::make_pair(features.geometryShader, "geometryShader"),
         std::make_pair(features.tessellationShader, "tessellationShader"),
         std::make_pair(features.occlusionQueryPrecise, "occlusionQueryPrecise"),
         std::make_pair(features.fragmentStoresAndAtomics, "fragmentStoresAndAtomics"),
@@ -811,6 +810,7 @@ void VKDevice::SetupFeatures() {
     const auto supported_features{physical.GetFeatures()};
     is_formatless_image_load_supported = supported_features.shaderStorageImageReadWithoutFormat;
     is_optimal_astc_supported = IsOptimalAstcSupported(supported_features);
+    is_geometry_shader_supported = supported_features.geometryShader;
 }
 
 void VKDevice::CollectTelemetryParameters() {

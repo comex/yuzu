@@ -209,6 +209,11 @@ public:
         return is_vk11_subgroup_ballot_supported;
     }
 
+    /// Returns true if the device supports geometry shaders.
+    bool IsGeometryShaderSupported() const {
+        return is_geometry_shader_supported;
+    }
+
     /// Returns the vendor name reported from Vulkan.
     std::string_view GetVendorName() const {
         return vendor_name;
@@ -263,6 +268,7 @@ private:
     VkShaderStageFlags guest_warp_stages{}; ///< Stages where the guest warp size can be forced.ed
     bool is_optimal_astc_supported{};       ///< Support for native ASTC.
     bool is_float16_supported{};            ///< Support for float16 arithmetics.
+    bool is_geometry_shader_supported{};    ///< Support for geomtry shaders.
     bool is_warp_potentially_bigger{};      ///< Host warp size can be bigger than guest.
     bool is_formatless_image_load_supported{}; ///< Support for shader image read without format.
     bool nv_viewport_swizzle{};                ///< Support for VK_NV_viewport_swizzle.

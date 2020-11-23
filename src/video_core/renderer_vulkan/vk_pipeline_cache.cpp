@@ -369,6 +369,12 @@ VKPipelineCache::DecompileShaders(const FixedPipelineState& fixed_state) {
         const std::size_t stage = index == 0 ? 0 : index - 1; // Stage indices are 0 - 5
         const ShaderType program_type = GetShaderType(program_enum);
         const auto& entries = shader->GetEntries();
+
+        if (program_type == ShaderType::Geometry && !device.IsGeometryShaderSupported()) {
+            LOG_ERROR(Render_Vulkan, "Skipping geometry shader because host doesn't support them; expect breakage");
+            continue;
+        }
+
         program[stage] = {
             Decompile(device, shader->GetIR(), program_type, shader->GetRegistry(), specialization),
             entries};
