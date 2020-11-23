@@ -40,6 +40,14 @@
 #include <vulkan/vulkan_win32.h>
 #endif
 
+#ifdef __APPLE__
+#define VK_USE_PLATFORM_METAL_EXT
+#include "vulkan/vulkan_macos.h"
+#include "vulkan/vulkan_metal.h"
+
+#include "video_core/renderer_vulkan/objc_helpers.h"
+#endif
+
 #if !defined(_WIN32) && !defined(__APPLE__)
 #include <X11/Xlib.h>
 #include <vulkan/vulkan_wayland.h>
@@ -116,6 +124,11 @@ std::pair<vk::Instance, u32> CreateInstance(
 #ifdef _WIN32
     case Core::Frontend::WindowSystemType::Windows:
         extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+        break;
+#endif
+#ifdef __APPLE__
+    case Core::Frontend::WindowSystemType::MacOS:
+        extensions.push_back(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
         break;
 #endif
 #if !defined(_WIN32) && !defined(__APPLE__)
@@ -386,6 +399,21 @@ bool RendererVulkan::CreateSurface() {
             vkCreateWaylandSurfaceKHR(*instance, &wayland_ci, nullptr, &unsafe_surface) !=
                 VK_SUCCESS) {
             LOG_ERROR(Render_Vulkan, "Failed to initialize Wayland surface");
+            return false;
+        }
+    }
+#endif
+#ifdef __APPLE__
+    if (window_info.type == Core::Frontend::WindowSystemType::MacOS) {
+        const CAMetalLayer* layer = PrepareMetalView(window_info.render_surface);
+        VkMetalSurfaceCreateInfoEXT surface_create_info = {
+            VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT, nullptr, 0, layer};
+        const auto vkCreateMetalSurfaceEXT = reinterpret_cast<PFN_vkCreateMetalSurfaceEXT>(
+            dld.vkGetInstanceProcAddr(*instance, "vkCreateMetalSurfaceEXT"));
+        if (!vkCreateMetalSurfaceEXT ||
+            vkCreateMetalSurfaceEXT(*instance, &surface_create_info, nullptr, &unsafe_surface) !=
+                VK_SUCCESS) {
+            LOG_ERROR(Render_Vulkan, "Failed to initialize Metal surface");
             return false;
         }
     }

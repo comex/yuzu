@@ -15,6 +15,10 @@
 #include "video_core/renderer_vulkan/renderer_vulkan.h"
 #include "yuzu_cmd/emu_window/emu_window_sdl2_vk.h"
 
+#ifdef __APPLE__
+#include "video_core/renderer_vulkan/objc_helpers.h"
+#endif
+
 // Include these late to avoid polluting everything with Xlib macros
 #include <SDL.h>
 #include <SDL_syswm.h>
@@ -54,6 +58,12 @@ EmuWindow_SDL2_VK::EmuWindow_SDL2_VK(InputCommon::InputSubsystem* input_subsyste
         window_info.type = Core::Frontend::WindowSystemType::Wayland;
         window_info.display_connection = wm.info.wl.display;
         window_info.render_surface = wm.info.wl.surface;
+        break;
+#endif
+#ifdef SDL_VIDEO_DRIVER_COCOA
+    case SDL_SYSWM_TYPE::SDL_SYSWM_COCOA:
+        window_info.type = Core::Frontend::WindowSystemType::MacOS;
+        window_info.render_surface = Vulkan::NSWindowToContentView(wm.info.cocoa.window);
         break;
 #endif
     default:

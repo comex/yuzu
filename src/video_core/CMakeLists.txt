@@ -285,6 +285,12 @@ if (ENABLE_VULKAN)
     target_link_libraries(video_core PRIVATE sirit)
 endif()
 
+if (APPLE AND ENABLE_VULKAN)
+    find_library(QUARTZCORE_LIBRARY QuartzCore) # provides CAMetalLayer
+    target_link_libraries(video_core PRIVATE ${QUARTZCORE_LIBRARY})
+    target_sources(video_core PRIVATE renderer_vulkan/objc_helpers.mm)
+endif()
+
 if (ENABLE_NSIGHT_AFTERMATH)
     if (NOT DEFINED ENV{NSIGHT_AFTERMATH_SDK})
         message(ERROR "Environment variable NSIGHT_AFTERMATH_SDK has to be provided")

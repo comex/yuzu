@@ -19,6 +19,7 @@ enum class WindowSystemType {
     Windows,
     X11,
     Wayland,
+    MacOS,
 };
 
 /**
