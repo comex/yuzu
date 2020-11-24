@@ -416,6 +416,9 @@ Errno Socket::Connect(SockAddrIn addr_in) {
     case WSAEWOULDBLOCK:
         LOG_DEBUG(Service, "EAGAIN generated");
         return Errno::AGAIN;
+    case ECONNREFUSED:
+        LOG_DEBUG(Service, "DERP ECONNREFUSED");
+        return Errno::INVAL;
     default:
         UNREACHABLE_MSG("Unhandled host socket error={}", ec);
         return Errno::SUCCESS;
