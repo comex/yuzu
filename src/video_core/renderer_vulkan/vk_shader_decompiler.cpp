@@ -97,7 +97,7 @@ struct VertexIndices {
 };
 
 struct GenericVaryingDescription {
-    Id id = nullptr;
+    Id id{};
     u32 first_element = 0;
     bool is_scalar = false;
 };
@@ -298,14 +298,25 @@ public:
         AddCapability(spv::Capability::SampledBuffer);
         AddCapability(spv::Capability::StorageImageWriteWithoutFormat);
         AddCapability(spv::Capability::DrawParameters);
-        AddCapability(spv::Capability::SubgroupBallotKHR);
-        AddCapability(spv::Capability::SubgroupVoteKHR);
         AddExtension("SPV_KHR_16bit_storage");
-        AddExtension("SPV_KHR_shader_ballot");
-        AddExtension("SPV_KHR_subgroup_vote");
         AddExtension("SPV_KHR_storage_buffer_storage_class");
         AddExtension("SPV_KHR_variable_pointers");
         AddExtension("SPV_KHR_shader_draw_parameters");
+
+        if (device.IsVK11SubgroupBallotSupported()) {
+            AddCapability(spv::Capability::GroupNonUniform); // for SubgroupLocalInvocationId
+            AddCapability(spv::Capability::GroupNonUniformBallot); // for Subgroup*Mask
+        } else {
+            AddCapability(spv::Capability::SubgroupBallotKHR);
+            AddExtension("SPV_KHR_shader_ballot");
+        }
+
+        if (device.IsVK11SubgroupVoteSupported()) {
+            AddCapability(spv::Capability::GroupNonUniformVote);
+        } else {
+            AddCapability(spv::Capability::SubgroupVoteKHR);
+            AddExtension("SPV_KHR_subgroup_vote");
+        }
 
         if (!transform_feedback.empty()) {
             if (device.IsExtTransformFeedbackSupported()) {
@@ -462,9 +473,8 @@ private:
             branch_labels.push_back(label);
         }
 
-        jmp_to = OpVariable(TypePointer(spv::StorageClass::Function, t_uint),
+        jmp_to = AddLocalVariable(TypePointer(spv::StorageClass::Function, t_uint),
                             spv::StorageClass::Function, Constant(t_uint, first_address));
-        AddLocalVariable(jmp_to);
 
         std::tie(ssy_flow_stack, ssy_flow_stack_top) = CreateFlowStack();
         std::tie(pbk_flow_stack, pbk_flow_stack_top) = CreateFlowStack();
@@ -522,6 +532,8 @@ private:
     }
 
     void DeclareCommon() {
+        // Note: These ops are the same whether using SPV_KHR_shader_ballot or
+        // the Vulkan 1.1 version.
         thread_id =
             DeclareInputBuiltIn(spv::BuiltIn::SubgroupLocalInvocationId, t_in_uint, "thread_id");
         thread_masks[0] =
@@ -543,8 +555,9 @@ private:
         Id out_vertex_struct;
         std::tie(out_vertex_struct, out_indices) = DeclareVertexStruct();
         const Id vertex_ptr = TypePointer(spv::StorageClass::Output, out_vertex_struct);
-        out_vertex = OpVariable(vertex_ptr, spv::StorageClass::Output);
-        interfaces.push_back(AddGlobalVariable(Name(out_vertex, "out_vertex")));
+        out_vertex = AddGlobalVariable(vertex_ptr, spv::StorageClass::Output);
+        Name(out_vertex, "out_vertex");
+        interfaces.push_back(out_vertex);
 
         // Declare input attributes
         vertex_index = DeclareInputBuiltIn(spv::BuiltIn::VertexIndex, t_in_int, "vertex_index");
@@ -605,7 +618,7 @@ private:
             if (!IsRenderTargetEnabled(rt)) {
                 continue;
             }
-            const Id id = AddGlobalVariable(OpVariable(t_out_float4, spv::StorageClass::Output));
+            const Id id = AddGlobalVariable(t_out_float4, spv::StorageClass::Output);
             Name(id, fmt::format("frag_color{}", rt));
             Decorate(id, spv::Decoration::Location, rt);
 
@@ -614,7 +627,7 @@ private:
         }
 
         if (header.ps.omap.depth) {
-            frag_depth = AddGlobalVariable(OpVariable(t_out_float, spv::StorageClass::Output));
+            frag_depth = AddGlobalVariable(t_out_float, spv::StorageClass::Output);
             Name(frag_depth, "frag_depth");
             Decorate(frag_depth, spv::Decoration::BuiltIn,
                      static_cast<u32>(spv::BuiltIn::FragDepth));
@@ -639,34 +652,34 @@ private:
 
     void DeclareRegisters() {
         for (const u32 gpr : ir.GetRegisters()) {
-            const Id id = OpVariable(t_prv_float, spv::StorageClass::Private, v_float_zero);
+            const Id id = AddGlobalVariable(t_prv_float, spv::StorageClass::Private, v_float_zero);
             Name(id, fmt::format("gpr_{}", gpr));
-            registers.emplace(gpr, AddGlobalVariable(id));
+            registers.emplace(gpr, id);
         }
     }
 
     void DeclareCustomVariables() {
         const u32 num_custom_variables = ir.GetNumCustomVariables();
         for (u32 i = 0; i < num_custom_variables; ++i) {
-            const Id id = OpVariable(t_prv_float, spv::StorageClass::Private, v_float_zero);
+            const Id id = AddGlobalVariable(t_prv_float, spv::StorageClass::Private, v_float_zero);
             Name(id, fmt::format("custom_var_{}", i));
-            custom_variables.emplace(i, AddGlobalVariable(id));
+            custom_variables.emplace(i, id);
         }
     }
 
     void DeclarePredicates() {
         for (const auto pred : ir.GetPredicates()) {
-            const Id id = OpVariable(t_prv_bool, spv::StorageClass::Private, v_false);
+            const Id id = AddGlobalVariable(t_prv_bool, spv::StorageClass::Private, v_false);
             Name(id, fmt::format("pred_{}", static_cast<u32>(pred)));
-            predicates.emplace(pred, AddGlobalVariable(id));
+            predicates.emplace(pred, id);
         }
     }
 
     void DeclareFlowVariables() {
         for (u32 i = 0; i < ir.GetASTNumVariables(); i++) {
-            const Id id = OpVariable(t_prv_bool, spv::StorageClass::Private, v_false);
+            const Id id = AddGlobalVariable(t_prv_bool, spv::StorageClass::Private, v_false);
             Name(id, fmt::format("flow_var_{}", static_cast<u32>(i)));
-            flow_variables.emplace(i, AddGlobalVariable(id));
+            flow_variables.emplace(i, id);
         }
     }
 
@@ -683,8 +696,8 @@ private:
         Name(type_pointer, "LocalMemory");
 
         local_memory =
-            OpVariable(type_pointer, spv::StorageClass::Private, ConstantNull(type_array));
-        AddGlobalVariable(Name(local_memory, "local_memory"));
+            AddGlobalVariable(type_pointer, spv::StorageClass::Private, ConstantNull(type_array));
+        Name(local_memory, "local_memory");
     }
 
     void DeclareSharedMemory() {
@@ -709,16 +722,17 @@ private:
         const Id type_pointer = TypePointer(spv::StorageClass::Workgroup, type_array);
         Name(type_pointer, "SharedMemory");
 
-        shared_memory = OpVariable(type_pointer, spv::StorageClass::Workgroup);
-        AddGlobalVariable(Name(shared_memory, "shared_memory"));
+        shared_memory = AddGlobalVariable(type_pointer, spv::StorageClass::Workgroup);
+        Name(shared_memory, "shared_memory");
     }
 
     void DeclareInternalFlags() {
         static constexpr std::array names{"zero", "sign", "carry", "overflow"};
 
         for (std::size_t flag = 0; flag < INTERNAL_FLAGS_COUNT; ++flag) {
-            const Id id = OpVariable(t_prv_bool, spv::StorageClass::Private, v_false);
-            internal_flags[flag] = AddGlobalVariable(Name(id, names[flag]));
+            const Id id = AddGlobalVariable(t_prv_bool, spv::StorageClass::Private, v_false);
+            Name(id, names[flag]);
+            internal_flags[flag] = id;
         }
     }
 
@@ -737,8 +751,8 @@ private:
         const auto [struct_id, indices] = DeclareVertexStruct();
         const Id vertex_array = TypeArray(struct_id, Constant(t_uint, length));
         const Id vertex_ptr = TypePointer(storage_class, vertex_array);
-        const Id vertex = OpVariable(vertex_ptr, storage_class);
-        AddGlobalVariable(Name(vertex, std::move(name)));
+        const Id vertex = AddGlobalVariable(vertex_ptr, storage_class);
+        Name(vertex, std::move(name));
         interfaces.push_back(vertex);
         return {indices, vertex};
     }
@@ -747,8 +761,9 @@ private:
         Id out_vertex_struct;
         std::tie(out_vertex_struct, out_indices) = DeclareVertexStruct();
         const Id out_vertex_ptr = TypePointer(spv::StorageClass::Output, out_vertex_struct);
-        out_vertex = OpVariable(out_vertex_ptr, spv::StorageClass::Output);
-        interfaces.push_back(AddGlobalVariable(Name(out_vertex, "out_vertex")));
+        out_vertex = AddGlobalVariable(out_vertex_ptr, spv::StorageClass::Output);
+        Name(out_vertex, "out_vertex");
+        interfaces.push_back(out_vertex);
     }
 
     void DeclareInputAttributes() {
@@ -769,8 +784,8 @@ private:
             } else {
                 type = type_descriptor.vector;
             }
-            const Id id = OpVariable(type, spv::StorageClass::Input);
-            AddGlobalVariable(Name(id, fmt::format("in_attr{}", location)));
+            const Id id = AddGlobalVariable(type, spv::StorageClass::Input);
+            Name(id, fmt::format("in_attr{}", location));
             input_attributes.emplace(index, id);
             interfaces.push_back(id);
 
@@ -841,8 +856,8 @@ private:
                 name = fmt::format("{}_{}", name, swizzle.substr(element, num_components));
             }
 
-            const Id id = OpVariable(type, spv::StorageClass::Output, varying_default);
-            Name(AddGlobalVariable(id), name);
+            const Id id = AddGlobalVariable(type, spv::StorageClass::Output, varying_default);
+            Name(id, name);
 
             GenericVaryingDescription description;
             description.id = id;
@@ -881,8 +896,8 @@ private:
         for (const auto& [index, size] : ir.GetConstantBuffers()) {
             const Id type = device.IsKhrUniformBufferStandardLayoutSupported() ? t_cbuf_scalar_ubo
                                                                                : t_cbuf_std140_ubo;
-            const Id id = OpVariable(type, spv::StorageClass::Uniform);
-            AddGlobalVariable(Name(id, fmt::format("cbuf_{}", index)));
+            const Id id = AddGlobalVariable(type, spv::StorageClass::Uniform);
+            Name(id, fmt::format("cbuf_{}", index));
 
             Decorate(id, spv::Decoration::Binding, binding++);
             Decorate(id, spv::Decoration::DescriptorSet, DESCRIPTOR_SET);
@@ -893,9 +908,8 @@ private:
 
     u32 DeclareGlobalBuffers(u32 binding) {
         for (const auto& [base, usage] : ir.GetGlobalMemory()) {
-            const Id id = OpVariable(t_gmem_ssbo, spv::StorageClass::StorageBuffer);
-            AddGlobalVariable(
-                Name(id, fmt::format("gmem_{}_{}", base.cbuf_index, base.cbuf_offset)));
+            const Id id = AddGlobalVariable(t_gmem_ssbo, spv::StorageClass::StorageBuffer);
+            Name(id, fmt::format("gmem_{}_{}", base.cbuf_index, base.cbuf_offset));
 
             Decorate(id, spv::Decoration::Binding, binding++);
             Decorate(id, spv::Decoration::DescriptorSet, DESCRIPTOR_SET);
@@ -920,8 +934,8 @@ private:
             constexpr auto format = spv::ImageFormat::Unknown;
             const Id image_type = TypeImage(t_float, dim, depth, arrayed, ms, sampled, format);
             const Id pointer_type = TypePointer(spv::StorageClass::UniformConstant, image_type);
-            const Id id = OpVariable(pointer_type, spv::StorageClass::UniformConstant);
-            AddGlobalVariable(Name(id, fmt::format("sampler_{}", sampler.index)));
+            const Id id = AddGlobalVariable(pointer_type, spv::StorageClass::UniformConstant);
+            Name(id, fmt::format("sampler_{}", sampler.index));
             Decorate(id, spv::Decoration::Binding, binding++);
             Decorate(id, spv::Decoration::DescriptorSet, DESCRIPTOR_SET);
 
@@ -949,8 +963,8 @@ private:
                                 ? TypeArray(sampler_type, Constant(t_uint, sampler.size))
                                 : sampler_type;
             const Id pointer_type = TypePointer(spv::StorageClass::UniformConstant, type);
-            const Id id = OpVariable(pointer_type, spv::StorageClass::UniformConstant);
-            AddGlobalVariable(Name(id, fmt::format("sampler_{}", sampler.index)));
+            const Id id = AddGlobalVariable(pointer_type, spv::StorageClass::UniformConstant);
+            Name(id, fmt::format("sampler_{}", sampler.index));
             Decorate(id, spv::Decoration::Binding, binding++);
             Decorate(id, spv::Decoration::DescriptorSet, DESCRIPTOR_SET);
 
@@ -988,8 +1002,8 @@ private:
         const auto format = image.is_atomic ? spv::ImageFormat::R32ui : spv::ImageFormat::Unknown;
         const Id image_type = TypeImage(t_uint, dim, depth, arrayed, ms, sampled, format, {});
         const Id pointer_type = TypePointer(spv::StorageClass::UniformConstant, image_type);
-        const Id id = OpVariable(pointer_type, spv::StorageClass::UniformConstant);
-        AddGlobalVariable(Name(id, fmt::format("image_{}", image.index)));
+        const Id id = AddGlobalVariable(pointer_type, spv::StorageClass::UniformConstant);
+        Name(id, fmt::format("image_{}", image.index));
 
         Decorate(id, spv::Decoration::Binding, binding++);
         Decorate(id, spv::Decoration::DescriptorSet, DESCRIPTOR_SET);
@@ -1527,8 +1541,8 @@ private:
             UNIMPLEMENTED();
         }
 
-        if (!target.id) {
-            // On failure we return a nullptr target.id, skip these stores.
+        if (target.type == Type::Void) {
+            // On failure we return a zero id, skip these stores.
             return {};
         }
 
@@ -1641,7 +1655,7 @@ private:
         const Id op_a = AsUint(Visit(operation[0]));
         const Id op_b = AsUint(Visit(operation[1]));
 
-        const Id result = OpIAddCarry(TypeStruct({t_uint, t_uint}), op_a, op_b);
+        const Id result = OpIAddCarry(TypeStruct(t_uint, t_uint), op_a, op_b);
         const Id carry = OpCompositeExtract(t_uint, result, 1);
         return {OpINotEqual(t_bool, carry, v_uint_zero), Type::Bool};
     }
@@ -2223,7 +2237,9 @@ private:
 
     Expression BallotThread(Operation operation) {
         const Id predicate = AsBool(Visit(operation[0]));
-        const Id ballot = OpSubgroupBallotKHR(t_uint4, predicate);
+        const Id ballot = device.IsVK11SubgroupBallotSupported()
+                              ? OpGroupNonUniformBallot(t_uint4, v_subgroup_scope, predicate)
+                              : OpSubgroupBallotKHR(t_uint4, predicate);
 
         if (!device.IsWarpSizePotentiallyBiggerThanGuest()) {
             // Guest-like devices can just return the first index.
@@ -2238,11 +2254,20 @@ private:
         return {OpVectorExtractDynamic(t_uint, ballot, thread_index), Type::Uint};
     }
 
-    template <Id (Module::*func)(Id, Id)>
+    template <Id (Module::*khr_func)(Id, Id), Id (Module::*vk11_func)(Id, Id, Id), bool requires_bool>
     Expression Vote(Operation operation) {
         // TODO(Rodrigo): Handle devices with different warp sizes
-        const Id predicate = AsBool(Visit(operation[0]));
-        return {(this->*func)(t_bool, predicate), Type::Bool};
+        Expression value = Visit(operation[0]);
+        if (requires_bool) {
+            ASSERT(value.type == Type::Bool);
+        }
+        Id result;
+        if (device.IsVK11SubgroupVoteSupported()) {
+            result = (this->*vk11_func)(t_bool, v_subgroup_scope, value.id);
+        } else {
+            result = (this->*khr_func)(t_bool, value.id);
+        }
+        return {result, Type::Bool};
     }
 
     Expression ThreadId(Operation) {
@@ -2291,9 +2316,9 @@ private:
     }
 
     Id DeclareBuiltIn(spv::BuiltIn builtin, spv::StorageClass storage, Id type, std::string name) {
-        const Id id = OpVariable(type, storage);
+        const Id id = AddGlobalVariable(type, storage);
         Decorate(id, spv::Decoration::BuiltIn, static_cast<u32>(builtin));
-        AddGlobalVariable(Name(id, std::move(name)));
+        Name(id, std::move(name));
         interfaces.push_back(id);
         return id;
     }
@@ -2490,11 +2515,9 @@ private:
         constexpr auto storage_class = spv::StorageClass::Function;
 
         const Id flow_stack_type = TypeArray(t_uint, Constant(t_uint, FLOW_STACK_SIZE));
-        const Id stack = OpVariable(TypePointer(storage_class, flow_stack_type), storage_class,
+        const Id stack = AddLocalVariable(TypePointer(storage_class, flow_stack_type), storage_class,
                                     ConstantNull(flow_stack_type));
-        const Id top = OpVariable(t_func_uint, storage_class, Constant(t_uint, 0));
-        AddLocalVariable(stack);
-        AddLocalVariable(top);
+        const Id top = AddLocalVariable(t_func_uint, storage_class, Constant(t_uint, 0));
         return std::tie(stack, top);
     }
 
@@ -2731,9 +2754,9 @@ private:
         &SPIRVDecompiler::WorkGroupId<2>,
 
         &SPIRVDecompiler::BallotThread,
-        &SPIRVDecompiler::Vote<&Module::OpSubgroupAllKHR>,
-        &SPIRVDecompiler::Vote<&Module::OpSubgroupAnyKHR>,
-        &SPIRVDecompiler::Vote<&Module::OpSubgroupAllEqualKHR>,
+        &SPIRVDecompiler::Vote<&Module::OpSubgroupAllKHR, &Module::OpGroupNonUniformAll, true>,
+        &SPIRVDecompiler::Vote<&Module::OpSubgroupAnyKHR, &Module::OpGroupNonUniformAny, true>,
+        &SPIRVDecompiler::Vote<&Module::OpSubgroupAllEqualKHR, &Module::OpGroupNonUniformAllEqual, false>,
 
         &SPIRVDecompiler::ThreadId,
         &SPIRVDecompiler::ThreadMask<0>, // Eq
@@ -2833,6 +2856,9 @@ private:
 
     const Id v_true = ConstantTrue(t_bool);
     const Id v_false = ConstantFalse(t_bool);
+
+    const Id v_subgroup_scope =
+        Name(Constant(t_uint, static_cast<u32>(spv::Scope::Subgroup)), "subgroup_scope");
 
     Id t_scalar_half{};
     Id t_half{};
@@ -3086,9 +3112,9 @@ private:
 void SPIRVDecompiler::DecompileAST() {
     const u32 num_flow_variables = ir.GetASTNumVariables();
     for (u32 i = 0; i < num_flow_variables; i++) {
-        const Id id = OpVariable(t_prv_bool, spv::StorageClass::Private, v_false);
+        const Id id = AddGlobalVariable(t_prv_bool, spv::StorageClass::Private, v_false);
         Name(id, fmt::format("flow_var_{}", i));
-        flow_variables.emplace(i, AddGlobalVariable(id));
+        flow_variables.emplace(i, id);
     }
 
     DefinePrologue();

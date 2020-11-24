@@ -197,6 +197,18 @@ public:
         return ext_extended_dynamic_state;
     }
 
+    /// Returns true if subgroup votes are supported based on Vulkan 1.1
+    /// instead of VK_EXT_shader_subgroup_vote.
+    bool IsVK11SubgroupVoteSupported() const {
+        return is_vk11_subgroup_vote_supported;
+    }
+
+    /// Returns true if subgroup ballots are supported based on Vulkan 1.1
+    /// instead of VK_EXT_shader_subgroup_ballot.
+    bool IsVK11SubgroupBallotSupported() const {
+        return is_vk11_subgroup_ballot_supported;
+    }
+
     /// Returns the vendor name reported from Vulkan.
     std::string_view GetVendorName() const {
         return vendor_name;
@@ -213,7 +225,7 @@ public:
     }
 
     /// Checks if the physical device is suitable.
-    static bool IsSuitable(vk::PhysicalDevice physical, VkSurfaceKHR surface);
+    static bool IsSuitable(vk::PhysicalDevice physical, VkSurfaceKHR surface, u32 instance_version);
 
 private:
     /// Loads extensions into a vector and stores available ones in this object.
@@ -262,6 +274,8 @@ private:
     bool ext_custom_border_color{};            ///< Support for VK_EXT_custom_border_color.
     bool ext_extended_dynamic_state{};         ///< Support for VK_EXT_extended_dynamic_state.
     bool nv_device_diagnostics_config{};       ///< Support for VK_NV_device_diagnostics_config.
+    bool is_vk11_subgroup_vote_supported{};    ///< Support for Vulkan 1.1 subgroup vote
+    bool is_vk11_subgroup_ballot_supported{};  ///< Support for Vulkan 1.1 subgroup ballot
 
     // Asynchronous Graphics Pipeline setting
     bool use_asynchronous_shaders{}; ///< Setting to use asynchronous shaders/graphics pipeline

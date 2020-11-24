@@ -413,7 +413,7 @@ bool RendererVulkan::PickDevices() {
     }
     const vk::PhysicalDevice physical_device((*devices)[static_cast<std::size_t>(device_index)],
                                              dld);
-    if (!VKDevice::IsSuitable(physical_device, *surface)) {
+    if (!VKDevice::IsSuitable(physical_device, *surface, instance_version)) {
         return false;
     }
 

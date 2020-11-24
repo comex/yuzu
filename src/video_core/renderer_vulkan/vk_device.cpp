@@ -47,8 +47,6 @@ constexpr std::array REQUIRED_EXTENSIONS{
     VK_KHR_DESCRIPTOR_UPDATE_TEMPLATE_EXTENSION_NAME,
     VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME,
     VK_EXT_VERTEX_ATTRIBUTE_DIVISOR_EXTENSION_NAME,
-    VK_EXT_SHADER_SUBGROUP_BALLOT_EXTENSION_NAME,
-    VK_EXT_SHADER_SUBGROUP_VOTE_EXTENSION_NAME,
     VK_EXT_HOST_QUERY_RESET_EXTENSION_NAME,
 };
 
@@ -510,8 +508,10 @@ bool VKDevice::IsFormatSupported(VkFormat wanted_format, VkFormatFeatureFlags wa
     return (supported_usage & wanted_usage) == wanted_usage;
 }
 
-bool VKDevice::IsSuitable(vk::PhysicalDevice physical, VkSurfaceKHR surface) {
+bool VKDevice::IsSuitable(vk::PhysicalDevice physical, VkSurfaceKHR surface, u32 instance_version) {
     bool is_suitable = true;
+    bool has_subgroup_ballot{};
+    bool has_subgroup_vote{};
     std::bitset<REQUIRED_EXTENSIONS.size()> available_extensions;
 
     for (const auto& prop : physical.EnumerateDeviceExtensionProperties()) {
@@ -522,7 +522,14 @@ bool VKDevice::IsSuitable(vk::PhysicalDevice physical, VkSurfaceKHR surface) {
             const std::string_view name{prop.extensionName};
             available_extensions[i] = name == REQUIRED_EXTENSIONS[i];
         }
+        if (prop.extensionName == std::string_view(VK_EXT_SHADER_SUBGROUP_BALLOT_EXTENSION_NAME)) {
+            has_subgroup_ballot = true;
+        }
+        if (prop.extensionName == std::string_view(VK_EXT_SHADER_SUBGROUP_VOTE_EXTENSION_NAME)) {
+            has_subgroup_vote = true;
+        }
     }
+
     if (!available_extensions.all()) {
         for (std::size_t i = 0; i < REQUIRED_EXTENSIONS.size(); ++i) {
             if (available_extensions[i]) {
@@ -531,6 +538,29 @@ bool VKDevice::IsSuitable(vk::PhysicalDevice physical, VkSurfaceKHR surface) {
             LOG_ERROR(Render_Vulkan, "Missing required extension: {}", REQUIRED_EXTENSIONS[i]);
             is_suitable = false;
         }
+    }
+
+    if (instance_version >= VK_API_VERSION_1_1) {
+        VkPhysicalDeviceSubgroupProperties subgroup_properties{};
+        subgroup_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES;
+        subgroup_properties.pNext = nullptr;
+
+        VkPhysicalDeviceProperties2KHR properties{};
+        properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR;
+        properties.pNext = &subgroup_properties;
+
+        physical.GetProperties2KHR(properties);
+
+        has_subgroup_ballot |=
+            (subgroup_properties.supportedOperations & VK_SUBGROUP_FEATURE_BALLOT_BIT) /* for GroupNonUniformVote */ &&
+            (subgroup_properties.supportedOperations & VK_SUBGROUP_FEATURE_BASIC_BIT) /* for GroupNonUniform */;
+
+        has_subgroup_vote |= subgroup_properties.supportedOperations & VK_SUBGROUP_FEATURE_VOTE_BIT;
+    }
+
+    if (!has_subgroup_ballot || !has_subgroup_vote) {
+        LOG_ERROR(Render_Vulkan, "Device lacks subgroup ballot or vote support");
+        is_suitable = false;
     }
 
     bool has_graphics{}, has_present{};
@@ -632,6 +662,8 @@ std::vector<const char*> VKDevice::LoadExtensions() {
         test(has_ext_transform_feedback, VK_EXT_TRANSFORM_FEEDBACK_EXTENSION_NAME, false);
         test(has_ext_custom_border_color, VK_EXT_CUSTOM_BORDER_COLOR_EXTENSION_NAME, false);
         test(has_ext_extended_dynamic_state, VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME, false);
+        test(std::nullopt, VK_EXT_SHADER_SUBGROUP_BALLOT_EXTENSION_NAME, true);
+        test(std::nullopt, VK_EXT_SHADER_SUBGROUP_VOTE_EXTENSION_NAME, true);
         if (instance_version >= VK_API_VERSION_1_1) {
             test(has_ext_subgroup_size_control, VK_EXT_SUBGROUP_SIZE_CONTROL_EXTENSION_NAME, false);
         }
@@ -731,6 +763,20 @@ std::vector<const char*> VKDevice::LoadExtensions() {
             extensions.push_back(VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME);
             ext_extended_dynamic_state = true;
         }
+    }
+
+    if (instance_version >= VK_API_VERSION_1_1) {
+        VkPhysicalDeviceSubgroupProperties subgroup_properties{};
+        subgroup_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES;
+        subgroup_properties.pNext = nullptr;
+        properties.pNext = &subgroup_properties;
+        physical.GetProperties2KHR(properties);
+
+        is_vk11_subgroup_ballot_supported =
+            (subgroup_properties.supportedOperations & VK_SUBGROUP_FEATURE_BALLOT_BIT) &&
+            (subgroup_properties.supportedOperations & VK_SUBGROUP_FEATURE_BASIC_BIT);
+
+        is_vk11_subgroup_vote_supported = subgroup_properties.supportedOperations & VK_SUBGROUP_FEATURE_VOTE_BIT;
     }
 
     return extensions;
