@@ -652,7 +652,7 @@ private:
 
     void DeclareRegisters() {
         for (const u32 gpr : ir.GetRegisters()) {
-            const Id id = AddGlobalVariable(t_prv_float, spv::StorageClass::Private, v_float_zero);
+            const Id id = AddLocalVariable(t_prv_float, spv::StorageClass::Private, v_float_zero);
             Name(id, fmt::format("gpr_{}", gpr));
             registers.emplace(gpr, id);
         }
@@ -661,7 +661,7 @@ private:
     void DeclareCustomVariables() {
         const u32 num_custom_variables = ir.GetNumCustomVariables();
         for (u32 i = 0; i < num_custom_variables; ++i) {
-            const Id id = AddGlobalVariable(t_prv_float, spv::StorageClass::Private, v_float_zero);
+            const Id id = AddLocalVariable(t_prv_float, spv::StorageClass::Private, v_float_zero);
             Name(id, fmt::format("custom_var_{}", i));
             custom_variables.emplace(i, id);
         }
@@ -669,7 +669,7 @@ private:
 
     void DeclarePredicates() {
         for (const auto pred : ir.GetPredicates()) {
-            const Id id = AddGlobalVariable(t_prv_bool, spv::StorageClass::Private, v_false);
+            const Id id = AddLocalVariable(t_prv_bool, spv::StorageClass::Private, v_false);
             Name(id, fmt::format("pred_{}", static_cast<u32>(pred)));
             predicates.emplace(pred, id);
         }
@@ -677,7 +677,7 @@ private:
 
     void DeclareFlowVariables() {
         for (u32 i = 0; i < ir.GetASTNumVariables(); i++) {
-            const Id id = AddGlobalVariable(t_prv_bool, spv::StorageClass::Private, v_false);
+            const Id id = AddLocalVariable(t_prv_bool, spv::StorageClass::Private, v_false);
             Name(id, fmt::format("flow_var_{}", static_cast<u32>(i)));
             flow_variables.emplace(i, id);
         }
