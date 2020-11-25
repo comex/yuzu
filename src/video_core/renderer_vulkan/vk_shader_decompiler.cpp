@@ -17,6 +17,7 @@
 #include "common/alignment.h"
 #include "common/assert.h"
 #include "common/common_types.h"
+#include "common/file_util.h"
 #include "common/logging/log.h"
 #include "video_core/engines/maxwell_3d.h"
 #include "video_core/engines/shader_bytecode.h"
@@ -3166,7 +3167,13 @@ ShaderEntries GenerateShaderEntries(const VideoCommon::Shader::ShaderIR& ir) {
 std::vector<u32> Decompile(const VKDevice& device, const VideoCommon::Shader::ShaderIR& ir,
                            ShaderType stage, const VideoCommon::Shader::Registry& registry,
                            const Specialization& specialization) {
-    return SPIRVDecompiler(device, ir, stage, registry, specialization).Assemble();
+    auto res = SPIRVDecompiler(device, ir, stage, registry, specialization).Assemble();
+    static int vk_dump_idx = 0;
+    std::string vk_dump_name = fmt::format("/tmp/vk_dump_{}", vk_dump_idx++);
+    Common::FS::IOFile of(vk_dump_name, "wb");
+    of.WriteArray(res.data(), res.size());
+    LOG_ERROR(Render_Vulkan, "Wrote VK dump {}", vk_dump_name);
+    return res;
 }
 
 } // namespace Vulkan
