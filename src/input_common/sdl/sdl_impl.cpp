@@ -866,7 +866,7 @@ Common::ParamPackage BuildParamPackageForBinding(int port, const std::string& gu
                                                  const SDL_GameControllerButtonBind& binding) {
     switch (binding.bindType) {
     case SDL_CONTROLLER_BINDTYPE_NONE:
-        break;
+        return {};
     case SDL_CONTROLLER_BINDTYPE_AXIS:
         return BuildAnalogParamPackageForButton(port, guid, binding.value.axis);
     case SDL_CONTROLLER_BINDTYPE_BUTTON:
