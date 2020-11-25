@@ -267,7 +267,7 @@ PollEvents TranslatePollRevents(short revents) {
     PollEvents result{};
     const auto translate = [&result, &revents](short host, PollEvents guest) {
         if ((revents & host) != 0) {
-            revents &= ~host;
+            revents &= static_cast<short>(~host);
             result |= guest;
         }
     };
