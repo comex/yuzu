@@ -188,7 +188,8 @@ VkFormat GetFormat(const Tegra::FramebufferConfig& framebuffer) {
     case Tegra::FramebufferConfig::PixelFormat::A8B8G8R8_UNORM:
         return VK_FORMAT_A8B8G8R8_UNORM_PACK32;
     case Tegra::FramebufferConfig::PixelFormat::RGB565_UNORM:
-        return VK_FORMAT_R5G6B5_UNORM_PACK16;
+        return VK_FORMAT_A8B8G8R8_UNORM_PACK32;
+        //return VK_FORMAT_R5G6B5_UNORM_PACK16;
     default:
         UNIMPLEMENTED_MSG("Unknown framebuffer pixel format: {}",
                           static_cast<u32>(framebuffer.pixel_format));
