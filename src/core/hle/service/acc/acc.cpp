@@ -18,6 +18,8 @@
 #include "core/hle/ipc_helpers.h"
 #include "core/hle/kernel/kernel.h"
 #include "core/hle/kernel/process.h"
+#include "core/hle/kernel/readable_event.h"
+#include "core/hle/kernel/writable_event.h"
 #include "core/hle/service/acc/acc.h"
 #include "core/hle/service/acc/acc_aa.h"
 #include "core/hle/service/acc/acc_su.h"
@@ -444,10 +446,11 @@ public:
 
 class IAsyncContext final : public ServiceFramework<IAsyncContext> {
 public:
-    explicit IAsyncContext(Core::System& system_) : ServiceFramework{system_, "IAsyncContext"} {
+    explicit IAsyncContext(Core::System& system_, std::shared_ptr<Kernel::ReadableEvent> event) : ServiceFramework(system_, "IAsyncContext"),
+        event(std::move(event)) {
         // clang-format off
         static const FunctionInfo functions[] = {
-            {0, nullptr, "GetSystemEvent"},
+            {0, &IAsyncContext::GetSystemEvent, "GetSystemEvent"},
             {1, nullptr, "Cancel"},
             {2, nullptr, "HasDone"},
             {3, nullptr, "GetResult"},
@@ -456,6 +459,16 @@ public:
 
         RegisterHandlers(functions);
     }
+
+    void GetSystemEvent(Kernel::HLERequestContext& ctx) {
+        LOG_WARNING(Service_NIFM, "(STUBBED) called");
+
+        IPC::ResponseBuilder rb{ctx, 2, 1};
+        rb.Push(RESULT_SUCCESS);
+        rb.PushCopyObjects(event);
+    }
+
+    std::shared_ptr<Kernel::ReadableEvent> event;
 };
 
 class ISessionObject final : public ServiceFramework<ISessionObject> {
@@ -500,7 +513,7 @@ public:
         static const FunctionInfo functions[] = {
             {0, &IManagerForApplication::CheckAvailability, "CheckAvailability"},
             {1, &IManagerForApplication::GetAccountId, "GetAccountId"},
-            {2, nullptr, "EnsureIdTokenCacheAsync"},
+            {2, &IManagerForApplication::EnsureIdTokenCacheAsync, "EnsureIdTokenCacheAsync"},
             {3, nullptr, "LoadIdTokenCache"},
             {130, nullptr, "GetNintendoAccountUserResourceCacheForApplication"},
             {150, nullptr, "CreateAuthorizationRequest"},
@@ -532,6 +545,16 @@ private:
         LOG_WARNING(Service_ACC, "(STUBBED) called");
         IPC::ResponseBuilder rb{ctx, 2};
         rb.Push(RESULT_SUCCESS);
+    }
+
+    void EnsureIdTokenCacheAsync(Kernel::HLERequestContext& ctx) {
+        LOG_WARNING(Service_ACC, "(STUBBED) called");
+        // TODO: For now this is never actually signalled.
+        auto event_pair = Kernel::WritableEvent::CreateEventPair(system.Kernel(), "EnsureIdTokenCacheAsync(stub)");
+
+        IPC::ResponseBuilder rb{ctx, 2, 0, 1};
+        rb.Push(RESULT_SUCCESS);
+        rb.PushIpcInterface<IAsyncContext>(user_id, event_pair.readable);
     }
 
     Common::UUID user_id;
